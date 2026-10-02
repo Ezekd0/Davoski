@@ -8,6 +8,16 @@ from .services.classifier import classify
 
 FLOW = dict(source_ip='192.0.2.42',destination_ip='10.0.0.12',destination_port=443,protocol='UDP',flow_duration=1250,packets_per_second=18500,packet_length_mean=64,failed_logins=0,unique_ports=1,outbound_bytes=15000,periodic_connections=3,payload_anomaly=False)
 
+class HealthRenderingTests(APITestCase):
+    def test_health_supports_json_and_browser_requests(self):
+        for accept, content_type in [('application/json', 'application/json'), ('text/html', 'text/html')]:
+            with self.subTest(accept=accept):
+                response = self.client.get('/api/health/', HTTP_ACCEPT=accept)
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response['Content-Type'].startswith(content_type))
+                self.assertEqual(response.data['status'], 'healthy')
+                self.assertEqual(response.data['database'], 'connected')
+
 @override_settings(REST_FRAMEWORK={
     'DEFAULT_AUTHENTICATION_CLASSES':['rest_framework_simplejwt.authentication.JWTAuthentication'],
     'DEFAULT_PERMISSION_CLASSES':['rest_framework.permissions.IsAuthenticated'],
