@@ -4,7 +4,7 @@ from datetime import timedelta
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEBUG = os.getenv('DEBUG', 'true').lower() == 'true'
+DEBUG = os.getenv('DEBUG', 'false' if os.getenv('RENDER') == 'true' else 'true').lower() == 'true'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'local-development-only-change-before-deploying')
 if not DEBUG and SECRET_KEY == 'local-development-only-change-before-deploying':
     raise ImproperlyConfigured('Set DJANGO_SECRET_KEY in production')
@@ -19,9 +19,24 @@ MIDDLEWARE = ['django.middleware.security.SecurityMiddleware', 'whitenoise.middl
 ROOT_URLCONF = 'config.urls'
 TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'APP_DIRS': True}]
 WSGI_APPLICATION = 'config.wsgi.application'
-DATABASES = {'default': dj_database_url.config(default=f'sqlite:///{BASE_DIR / "db.sqlite3"}', conn_max_age=60)}
+if not DEBUG and not os.getenv('DATABASE_URL', '').strip():
+    raise ImproperlyConfigured('Set DATABASE_URL to a PostgreSQL database in production')
+DATABASES = {'default': dj_database_url.config(
+    default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+    conn_max_age=60,
+    conn_health_checks=True,
+)}
+if not DEBUG and DATABASES['default']['ENGINE'] != 'django.db.backends.postgresql':
+    raise ImproperlyConfigured('Production requires a PostgreSQL DATABASE_URL')
 AUTH_PASSWORD_VALIDATORS = [{'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'}, {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'}, {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'}, {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'}]
 REST_FRAMEWORK = {'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework_simplejwt.authentication.JWTAuthentication'], 'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'], 'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.AnonRateThrottle', 'rest_framework.throttling.UserRateThrottle'], 'DEFAULT_THROTTLE_RATES': {'anon': '30/minute', 'user': '300/minute'}, 'EXCEPTION_HANDLER': 'soc.exceptions.api_exception_handler'}
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'backend': {'format': '{levelname} {name}: {message}', 'style': '{'}},
+    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'backend'}},
+    'loggers': {'soc': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False}},
+}
 SIMPLE_JWT = {'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15), 'REFRESH_TOKEN_LIFETIME': timedelta(hours=8), 'ROTATE_REFRESH_TOKENS': True, 'BLACKLIST_AFTER_ROTATION': True}
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(',')
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
